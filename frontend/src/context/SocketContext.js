@@ -1,6 +1,14 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { SOCKET_URL } from '../utils/constants';
 
 const SocketContext = createContext();
 
@@ -12,107 +20,107 @@ export const useSocket = () => {
   return context;
 };
 
+const emitWithAck = (socket, event, payload) =>
+  new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error('Socket is not connected'));
+      return;
+    }
+
+    socket.timeout(10000).emit(event, payload, (error, response) => {
+      if (error) {
+        reject(new Error('Server did not acknowledge the request'));
+        return;
+      }
+
+      if (!response?.success) {
+        reject(new Error(response?.message || 'Socket request failed'));
+        return;
+      }
+
+      resolve(response);
+    });
+  });
+
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const { user, isAuthenticated } = useAuth();
+  const { user, token, isAuthenticated } = useAuth();
 
   useEffect(() => {
-    if (isAuthenticated && user && user.id && user.username) {
-      const newSocket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000', {
-        auth: {
-          userId: user.id,
-          username: user.username
-        },
-        autoConnect: true
+    if (!isAuthenticated || !token || !user?.id || !user?.username) {
+      setConnected(false);
+      setOnlineUsers([]);
+      setSocket((currentSocket) => {
+        currentSocket?.close();
+        return null;
       });
-
-      newSocket.on('connect', () => {
-        console.log('Socket connected:', newSocket.id);
-        setConnected(true);
-      });
-
-      newSocket.on('disconnect', () => {
-        console.log('Socket disconnected');
-        setConnected(false);
-      });
-
-      newSocket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
-        setConnected(false);
-      });
-
-      // User join/leave indication logs
-      newSocket.on('user-joined', (data) => console.log('User joined:', data));
-      newSocket.on('user-left', (data) => console.log('User left:', data));
-      newSocket.on('online-users', (users) => setOnlineUsers(users));
-      newSocket.on('error', (error) => console.error('Socket error:', error));
-
-      setSocket(newSocket);
-
-      return () => {
-        console.log('Cleaning up socket connection');
-        newSocket.close();
-      };
-    } else {
-      if (socket) {
-        socket.close();
-        setSocket(null);
-        setConnected(false);
-      }
+      return undefined;
     }
-  }, [isAuthenticated, user]);
 
-  const joinRoom = (roomId) => {
-    if (socket && connected && user && user.id && user.username) {
-      socket.emit('join-room', {
-        roomId,
-        userId: user.id,
-        username: user.username
-      });
-    }
-  };
+    const nextSocket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500,
+    });
 
-  const leaveRoom = (roomId) => {
-    if (socket && connected && user && user.username) {
-      socket.emit('leave-room', {
-        roomId,
-        username: user.username
-      });
-    }
-  };
+    const handleConnect = () => setConnected(true);
+    const handleDisconnect = () => setConnected(false);
+    const handleConnectError = (error) => {
+      console.error('Socket connection error:', error.message);
+      setConnected(false);
+    };
 
-  const sendMessage = (roomId, message) => {
-    if (socket && connected && user && user.id && user.username) {
-      console.log('Emitting send-message with data:', {
-        roomId,
-        userId: user.id,
-        username: user.username,
-        message
-      });
-      socket.emit('send-message', {
-        roomId,
-        userId: user.id,
-        username: user.username,
-        message
-      });
-    } else {
-      console.error('Cannot send message: user info is missing.', {
-        user,
-        connected
-      });
-    }
-  };
+    nextSocket.on('connect', handleConnect);
+    nextSocket.on('disconnect', handleDisconnect);
+    nextSocket.on('connect_error', handleConnectError);
+    nextSocket.on('online-users', setOnlineUsers);
+    nextSocket.on('error', (error) => console.error('Socket error:', error));
 
-  const value = {
-    socket,
-    connected,
-    onlineUsers,
-    joinRoom,
-    leaveRoom,
-    sendMessage
-  };
+    setSocket(nextSocket);
+
+    return () => {
+      nextSocket.off('connect', handleConnect);
+      nextSocket.off('disconnect', handleDisconnect);
+      nextSocket.off('connect_error', handleConnectError);
+      nextSocket.off('online-users', setOnlineUsers);
+      nextSocket.close();
+      setConnected(false);
+    };
+  }, [isAuthenticated, token, user?.id, user?.username]);
+
+  const joinRoom = useCallback(
+    (roomId) => emitWithAck(socket, 'join-room', { roomId }),
+    [socket]
+  );
+
+  const leaveRoom = useCallback(
+    (roomId) => {
+      if (!socket?.connected) return Promise.resolve({ success: true });
+      return emitWithAck(socket, 'leave-room', { roomId });
+    },
+    [socket]
+  );
+
+  const sendMessage = useCallback(
+    (roomId, message) => emitWithAck(socket, 'send-message', { roomId, message }),
+    [socket]
+  );
+
+  const value = useMemo(
+    () => ({
+      socket,
+      connected,
+      onlineUsers,
+      joinRoom,
+      leaveRoom,
+      sendMessage,
+    }),
+    [socket, connected, onlineUsers, joinRoom, leaveRoom, sendMessage]
+  );
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 };

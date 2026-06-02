@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Header from '../Layout/Header';
@@ -21,7 +22,7 @@ const ChatRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { socket, joinRoom, leaveRoom } = useSocket();
+  const { socket, connected, joinRoom, leaveRoom } = useSocket();
 
   const [chatroom, setChatroom] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -35,21 +36,32 @@ const ChatRoom = () => {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (roomId && socket && socket.connected) {
-      joinRoom(roomId);
-    }
+    if (!roomId || !connected) return undefined;
+
+    let active = true;
+    joinRoom(roomId).catch((error) => {
+      if (active) toast.error(error.message || 'Failed to join room');
+    });
+
     return () => {
-      if (socket && socket.connected && roomId) {
-        leaveRoom(roomId);
-      }
+      active = false;
+      leaveRoom(roomId).catch((error) => {
+        console.error('Failed to leave room:', error.message);
+      });
     };
-  }, [roomId, socket, joinRoom, leaveRoom]);
+  }, [roomId, connected, joinRoom, leaveRoom]);
 
   useEffect(() => {
     if (!socket) return;
 
     const onNewMessage = (message) => {
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => {
+        const messageId = message._id || message.id;
+        if (messageId && prev.some((existing) => (existing._id || existing.id) === messageId)) {
+          return prev;
+        }
+        return [...prev, message];
+      });
       scrollToBottom();
     };
 
@@ -66,20 +78,36 @@ const ChatRoom = () => {
       toast.info(`${data.username} left the room`);
     };
 
+    const onRoomError = (data) => {
+      if (!data.roomId || data.roomId === roomId) {
+        toast.error(data.message || 'Room error');
+      }
+    };
+
+    const onMessageError = (data) => {
+      if (!data.roomId || data.roomId === roomId) {
+        toast.error(data.message || 'Message failed');
+      }
+    };
+
     socket.on('new-message', onNewMessage);
     socket.on('previous-messages', onPreviousMessages);
     socket.on('user-joined', onUserJoined);
     socket.on('user-left', onUserLeft);
+    socket.on('room-error', onRoomError);
+    socket.on('message-error', onMessageError);
 
     return () => {
       socket.off('new-message', onNewMessage);
       socket.off('previous-messages', onPreviousMessages);
       socket.off('user-joined', onUserJoined);
       socket.off('user-left', onUserLeft);
+      socket.off('room-error', onRoomError);
+      socket.off('message-error', onMessageError);
     };
-  }, [socket]);
+  }, [socket, roomId]);
 
-  const fetchChatroom = async () => {
+  const fetchChatroom = useCallback(async () => {
     try {
       const response = await chatroomsAPI.getById(roomId);
       setChatroom(response.data.chatroom);
@@ -88,26 +116,26 @@ const ChatRoom = () => {
       toast.error('Failed to fetch chatroom details');
       navigate('/dashboard');
     }
-  };
+  }, [navigate, roomId]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       const response = await chatroomsAPI.getMessages(roomId, { limit: 50 });
       setMessages(response.data.messages);
-      scrollToBottom();
+      window.requestAnimationFrame(scrollToBottom);
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [roomId]);
 
   useEffect(() => {
     if (roomId) {
       fetchChatroom();
       fetchMessages();
     }
-  }, [roomId]);
+  }, [roomId, fetchChatroom, fetchMessages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -120,7 +148,7 @@ const ChatRoom = () => {
       setSummary(response.data);
       setShowSummary(true);
     } catch (error) {
-      toast.error('Failed to generate summary');
+      toast.error(error.response?.data?.error || 'Failed to generate summary');
     } finally {
       setSummaryLoading(false);
     }
@@ -307,9 +335,9 @@ const ChatRoom = () => {
 
               <div className="prose max-w-none">
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+                  <ReactMarkdown>
                     {summary.summary}
-                  </p>
+                  </ReactMarkdown>
                 </div>
               </div>
 

@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import { API_BASE_URL } from '../utils/constants';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

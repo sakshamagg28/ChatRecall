@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSocket } from '../../context/SocketContext';
 import { FaPaperPlane, FaSmile } from 'react-icons/fa';
+import { toast } from 'react-toastify';
 
 const MessageInput = ({ roomId }) => {
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const { sendMessage } = useSocket();
+  const [sending, setSending] = useState(false);
+  const { connected, sendMessage } = useSocket();
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -16,14 +18,26 @@ const MessageInput = ({ roomId }) => {
     }
   }, [message]);
 
-  // Minimal handleSubmit for testing
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (message.trim()) {
-      console.log('Sending message:', message.trim());
-      sendMessage(roomId, message.trim());
+
+    const content = message.trim();
+    if (!content || sending) return;
+
+    if (!connected) {
+      toast.error('Cannot send message while disconnected');
+      return;
+    }
+
+    try {
+      setSending(true);
+      await sendMessage(roomId, content);
       setMessage('');
       setIsTyping(false);
+    } catch (error) {
+      toast.error(error.message || 'Failed to send message');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -84,13 +98,13 @@ const MessageInput = ({ roomId }) => {
         </div>
         <button
           type="submit"
-          disabled={!message.trim() || message.length > 1000}
+          disabled={!message.trim() || message.length > 1000 || sending || !connected}
           className={`p-3 rounded-lg transition-all duration-200 ${
-            message.trim() && message.length <= 1000
+            message.trim() && message.length <= 1000 && !sending && connected
               ? 'bg-blue-600 text-white hover:bg-blue-700 transform hover:scale-105 shadow-md'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
-          title="Send message"
+          title={connected ? 'Send message' : 'Socket disconnected'}
         >
           <FaPaperPlane className="w-5 h-5" />
         </button>

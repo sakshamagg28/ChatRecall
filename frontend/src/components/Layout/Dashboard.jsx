@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Header from './Header';
-import { chatroomsAPI } from '../../services/api';
+import { aiAPI, chatroomsAPI } from '../../services/api';
 import { 
   FaPlus, FaUsers, FaComments, FaClock, FaGlobe, FaLock,
   FaRobot, FaSearch
@@ -24,9 +24,8 @@ const Dashboard = () => {
     fetchChatrooms();
 
     // Fetch AI status on mount
-    fetch('/api/ai/status')
-      .then((res) => res.json())
-      .then((data) => setAIStatus(data))
+    aiAPI.getStatus()
+      .then((response) => setAIStatus(response.data))
       .catch(() => setAIStatus(null));
   }, []);
 
@@ -66,8 +65,8 @@ const Dashboard = () => {
 
   const filteredChatrooms = chatrooms.filter(room =>
     room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    room.topic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    room.description.toLowerCase().includes(searchTerm.toLowerCase())
+    (room.topic || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (room.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const formatDate = (dateString) => {

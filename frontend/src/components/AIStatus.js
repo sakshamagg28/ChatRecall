@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
+import { aiAPI } from '../services/api';
 
 function AIStatus() {
   const [aiOnline, setAiOnline] = useState(false);
 
   useEffect(() => {
-    fetch('/api/ai/status')
-      .then((response) => response.json())
-      .then((data) => {
+    aiAPI.getStatus()
+      .then((response) => {
+        const data = response.data;
         if (data.features && data.features.semanticSearch === true) {
           setAiOnline(true);
         } else {

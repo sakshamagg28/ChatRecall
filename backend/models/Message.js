@@ -1,18 +1,23 @@
 const mongoose = require('mongoose');
 
-const messageSchema = new mongoose.Schema({
-  roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Chatroom', required: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  username: { type: String, required: true },
-  content: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now },
-  
-  // Embedding vector field for semantic search
-  embedding: {
-    type: [Number],  // Array of numbers representing the vector
-    required: false, // Allow optional to not break old messages
+const messageSchema = new mongoose.Schema(
+  {
+    roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Chatroom', required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    username: { type: String, required: true, trim: true },
+    content: { type: String, required: true, trim: true, maxlength: 1000 },
+    timestamp: { type: Date, default: Date.now },
+
+    embedding: {
+      type: [Number],
+      required: false,
+    },
   },
-});
+  { timestamps: true }
+);
+
+messageSchema.index({ roomId: 1, timestamp: 1 });
+messageSchema.index({ userId: 1, timestamp: -1 });
 
 messageSchema.post('save', async function (doc) {
   try {

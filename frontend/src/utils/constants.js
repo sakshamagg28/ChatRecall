@@ -1,6 +1,6 @@
 // API Configuration
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-export const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5050/api';
+export const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5050';
 
 // App Configuration
 export const APP_NAME = process.env.REACT_APP_APP_NAME || 'Chat Recall';
@@ -16,7 +16,7 @@ export const CHATROOMS_PER_PAGE = 10;
 // AI Configuration
 export const AI_SEARCH_LIMIT_DEFAULT = 10;
 export const AI_CONTEXT_LIMIT_DEFAULT = 5;
-export const AI_RELEVANCE_THRESHOLD_DEFAULT = 0.7;
+export const AI_RELEVANCE_THRESHOLD_DEFAULT = 0;
 
 // Socket Events
 export const SOCKET_EVENTS = {
@@ -126,7 +126,7 @@ export const UPLOAD_LIMITS = {
   ALLOWED_FILE_TYPES: ['application/pdf', 'text/plain', 'application/msword']
 };
 
-export default {
+const constants = {
   API_BASE_URL,
   SOCKET_URL,
   APP_NAME,
@@ -146,3 +146,5 @@ export default {
   DATE_FORMATS,
   UPLOAD_LIMITS
 };
+
+export default constants;

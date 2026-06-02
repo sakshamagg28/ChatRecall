@@ -1,4 +1,3 @@
-import { io } from 'socket.io-client';
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
@@ -114,17 +113,6 @@ function AppContent() {
 }
 
 function App() {
-  const socket = io('http://localhost:5000');
-
-  // Shows connection status
-  socket.on('connect', () => {
-    console.log('Connected to chat server!');
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Disconnected from chat server!');
-  });
-
   return (
     <AuthProvider>
       <SocketProvider>

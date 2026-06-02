@@ -6,11 +6,11 @@ import {
   FaSpinner, 
   FaRobot, 
   FaUser, 
-  FaLightbulb,
   FaHistory,
   FaTrash
 } from 'react-icons/fa';
 import moment from 'moment';
+import { AI_CONTEXT_LIMIT_DEFAULT, AI_RELEVANCE_THRESHOLD_DEFAULT } from '../../utils/constants';
 
 const QAChat = ({ chatrooms, aiStatus }) => {
   const [question, setQuestion] = useState('');
@@ -48,8 +48,8 @@ const QAChat = ({ chatrooms, aiStatus }) => {
       const response = await aiAPI.askQuestion({
         question: currentQuestion,
         roomId: selectedRoom || undefined,
-        contextLimit: 5,
-        relevanceThreshold: 0.7
+        contextLimit: AI_CONTEXT_LIMIT_DEFAULT,
+        relevanceThreshold: AI_RELEVANCE_THRESHOLD_DEFAULT
       });
 
       if (response.data.success) {
@@ -79,12 +79,12 @@ const QAChat = ({ chatrooms, aiStatus }) => {
       const errorMessage = {
         id: Date.now() + 1,
         type: 'error',
-        content: 'Sorry, there was an error processing your question. Please try again.',
+        content: error.response?.data?.message || 'Sorry, there was an error processing your question. Please try again.',
         timestamp: new Date()
       };
 
       setChatHistory(prev => [...prev, errorMessage]);
-      toast.error('Failed to process question');
+      toast.error(error.response?.data?.message || 'Failed to process question');
     } finally {
       setLoading(false);
     }

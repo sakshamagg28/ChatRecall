@@ -17,9 +17,6 @@ const initializeChroma = async () => {
     collection = await chromaClient.getOrCreateCollection({
       name: process.env.VECTOR_COLLECTION || 'chat_vectors',
       metadata: { 'hnsw:space': 'cosine' },
-      embeddingFunction: {
-        generate: async (texts) => Array(texts.length).fill(Array(1536).fill(0))
-      }
     });
 
     console.log('✅ Chroma Collection "chat_vectors" ready');

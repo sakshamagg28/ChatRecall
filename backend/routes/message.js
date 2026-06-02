@@ -1,44 +1,57 @@
 const express = require('express');
-const router = express.Router();
-const axios = require('axios');
+const mongoose = require('mongoose');
+const Chatroom = require('../models/Chatroom');
 const Message = require('../models/Message');
-const GEMINI_SUMMARIZE_URL = `https://generativelanguage.googleapis.com/v1beta/models/text-bison-001:generateText`;
+const { requireAuth } = require('../middleware/auth');
 
+const router = express.Router();
 
-async function generateEmbedding(text) {
-  const response = await axios.post(
-    `${GEMINI_EMBEDDING_URL}?key=${process.env.GEMINI_API_KEY}`,
-    { content: [{ text }] },
-    { timeout: 60000 }
-  );
-  if (!response.data || !response.data.embedding) {
-    throw new Error('Failed to generate embedding');
-  }
-  return response.data.embedding;
-}
+router.use(requireAuth);
 
 router.post('/', async (req, res) => {
   try {
-    const { content, username, userId, roomId } = req.body;
-    if (!content || !username || !userId || !roomId) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    const embedding = await generateEmbedding(content);
+    const { roomId } = req.body;
+    const content = req.body.content?.trim();
 
-    const message = new Message({
+    if (!content || !roomId) {
+      return res.status(400).json({ success: false, message: 'roomId and content are required' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+      return res.status(400).json({ success: false, message: 'Invalid roomId' });
+    }
+
+    const chatroom = await Chatroom.findById(roomId);
+    if (!chatroom) {
+      return res.status(404).json({ success: false, message: 'Chatroom not found' });
+    }
+
+    const isMember = chatroom.members.some((memberId) => memberId.equals(req.user._id));
+    if (!chatroom.isPublic && !isMember) {
+      return res.status(403).json({ success: false, message: 'Access denied to this chatroom' });
+    }
+
+    if (!isMember) {
+      chatroom.members.push(req.user._id);
+    }
+    if (!chatroom.owner) {
+      chatroom.owner = req.user._id;
+    }
+    chatroom.lastActivity = new Date();
+    await chatroom.save();
+
+    const message = await Message.create({
       content,
-      username,
-      userId,
+      username: req.user.username,
+      userId: req.user._id,
       roomId,
       timestamp: new Date(),
-      embedding,
     });
 
-    await message.save();
-    res.status(201).json(message);
+    res.status(201).json({ success: true, message });
   } catch (error) {
-    console.error('Error creating message:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error creating message:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to create message' });
   }
 });
 

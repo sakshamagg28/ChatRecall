@@ -4,11 +4,76 @@ const aiService = require('../services/aiService');
 const chromaService = require('../services/chromaService');
 const geminiService = require('../services/gemini');
 const Message = require('../models/Message');
+const Chatroom = require('../models/Chatroom');
+const { requireAuth } = require('../middleware/auth');
+
+router.get('/status', async (_req, res) => {
+  const geminiConfigured = !!process.env.GEMINI_API_KEY;
+  let chromadbStatus = 'unavailable';
+  let messageCount = 0;
+
+  try {
+    const { getCollection } = require('../config/chroma');
+    const collection = getCollection();
+    if (collection) {
+      chromadbStatus = 'available';
+      messageCount = await collection.count();
+    }
+  } catch (error) {
+    console.error('Error fetching Chroma status:', error.message);
+  }
+
+  const statusObj = {
+    features: {
+      semanticSearch: geminiConfigured && chromadbStatus === 'available',
+      qaFromChats: geminiConfigured && chromadbStatus === 'available',
+      summarization: geminiConfigured,
+    },
+    gemini: { status: geminiConfigured },
+    chromadb: {
+      status: chromadbStatus,
+      messageCount,
+    },
+  };
+
+  res.json({
+    ...statusObj,
+    status: statusObj,
+  });
+});
+
+router.use(requireAuth);
+
+const getAccessibleRoomIds = async (userId) => {
+  const rooms = await Chatroom.find({
+    $or: [{ isPublic: true }, { members: userId }],
+  }).select('_id');
+
+  return rooms.map((room) => room._id.toString());
+};
+
+const requireRoomAccess = async (roomId, userId) => {
+  const room = await Chatroom.findById(roomId).select('isPublic members');
+  if (!room) {
+    return { error: { status: 404, message: 'Chatroom not found' } };
+  }
+
+  const isMember = room.members.some((memberId) => memberId.equals(userId));
+  if (!room.isPublic && !isMember) {
+    return { error: { status: 403, message: 'Access denied to this chatroom' } };
+  }
+
+  return { room };
+};
 
 router.post('/summarize/:chatroomId', async (req, res) => {
   try {
     const { chatroomId } = req.params;
-    const messageLimit = req.body.messageLimit || 50;
+    const messageLimit = req.body?.messageLimit || 50;
+    const { error } = await requireRoomAccess(chatroomId, req.user._id);
+    if (error) {
+      return res.status(error.status).json({ error: error.message });
+    }
 
     // Get last messages from the chatroom
     const messages = await Message.find({ roomId: chatroomId })
@@ -21,6 +86,13 @@ router.post('/summarize/:chatroomId', async (req, res) => {
       .map((m) => `${m.username}: ${m.content}`)
       .join('\n');
 
+    if (!textToSummarize) {
+      return res.json({
+        messageCount: 0,
+        summary: 'No messages are available to summarize yet.',
+      });
+    }
+
     // Get summary from AI service (now Gemini)
     const summary = await aiService.summarizeText(textToSummarize);
 
@@ -28,7 +100,7 @@ router.post('/summarize/:chatroomId', async (req, res) => {
   } catch (error) {
     console.error('Summarization error:', error);
     res
-      .status(500)
+      .status(error.statusCode || 500)
       .json({ error: error.message || 'Failed to summarize' });
   }
 });
@@ -41,15 +113,27 @@ router.post('/search', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Query is required' });
     }
 
+    const allowedRoomIds = roomId
+      ? [roomId.toString()]
+      : await getAccessibleRoomIds(req.user._id);
+
+    if (roomId) {
+      const { error } = await requireRoomAccess(roomId, req.user._id);
+      if (error) {
+        return res.status(error.status).json({ success: false, message: error.message });
+      }
+    }
+
     const results = await chromaService.semanticSearch(query, {
       roomId,
+      allowedRoomIds,
       limit: limit ? parseInt(limit) : 10
     });
 
     res.json({ success: true, results });
   } catch (error) {
     console.error('Semantic search route error:', error);
-    res.status(500).json({ success: false, message: error.message || 'Failed to search' });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Failed to search' });
   }
 });
 
@@ -61,15 +145,29 @@ router.post('/qa', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Question is required' });
     }
 
+    const allowedRoomIds = roomId
+      ? [roomId.toString()]
+      : await getAccessibleRoomIds(req.user._id);
+
+    if (roomId) {
+      const { error } = await requireRoomAccess(roomId, req.user._id);
+      if (error) {
+        return res.status(error.status).json({ success: false, message: error.message });
+      }
+    }
+
     // Retrieve relevant context from ChromaDB
     const searchLimit = contextLimit ? parseInt(contextLimit) : 5;
     const relevantMessages = await chromaService.semanticSearch(question, {
       roomId,
+      allowedRoomIds,
       limit: searchLimit
     });
 
+    console.log('QA Search Results:', JSON.stringify(relevantMessages, null, 2));
+
     // Filter messages by relevance threshold if provided
-    const threshold = relevanceThreshold ? parseFloat(relevanceThreshold) : 0;
+    const threshold = relevanceThreshold !== undefined ? parseFloat(relevanceThreshold) : 0;
     const filteredMessages = relevantMessages.filter(msg => msg.relevanceScore >= threshold);
 
     if (filteredMessages.length === 0) {
@@ -85,7 +183,10 @@ router.post('/qa', async (req, res) => {
       .join('\n');
 
     // Call Gemini to get answer
-    const answer = await geminiService.answerQuestion(context, question);
+    const answer = await geminiService.answerQuestion(
+      context,
+      question
+    );
 
     res.json({
       success: true,
@@ -95,7 +196,7 @@ router.post('/qa', async (req, res) => {
     });
   } catch (error) {
     console.error('QA route error:', error);
-    res.status(500).json({ success: false, message: error.message || 'Failed to answer question' });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Failed to answer question' });
   }
 });
 

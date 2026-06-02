@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { aiAPI } from '../../services/api';
 import { toast } from 'react-toastify';
-import { FaSearch, FaSpinner, FaClock, FaUser, FaComments, FaFilter } from 'react-icons/fa';
+import { FaSearch, FaSpinner, FaFilter } from 'react-icons/fa';
 import moment from 'moment';
+import { AI_SEARCH_LIMIT_DEFAULT } from '../../utils/constants';
 
 const SemanticSearch = ({ chatrooms, aiStatus }) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState('');
+  const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState('');
   const [searchHistory, setSearchHistory] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(AI_SEARCH_LIMIT_DEFAULT);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -50,7 +51,7 @@ const SemanticSearch = ({ chatrooms, aiStatus }) => {
       }
     } catch (error) {
       console.error('Search error:', error);
-      toast.error('Search failed. Please try again.');
+      toast.error(error.response?.data?.message || 'Search failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -163,7 +164,7 @@ const SemanticSearch = ({ chatrooms, aiStatus }) => {
       )}
 
       {/* Results Display */}
-      {results && (
+      {results !== null && (
         <div className="mt-4 p-4 border border-gray-300 rounded bg-gray-50 whitespace-pre-wrap">
           <h3 className="text-lg font-semibold mb-2">Search Results:</h3>
           {typeof results === 'string' ? (

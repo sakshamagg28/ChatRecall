@@ -3,6 +3,14 @@ import api from '../services/api';
 
 const AuthContext = createContext();
 
+const normalizeUser = (userData) => {
+  if (!userData) return null;
+  return {
+    ...userData,
+    id: userData.id || userData._id,
+  };
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -27,7 +35,7 @@ export const AuthProvider = ({ children }) => {
 
           // Verify token and get user info
           const response = await api.get('/auth/me');
-          setUser(response.data.user);
+          setUser(normalizeUser(response.data.user));
           setToken(savedToken);
         } catch (error) {
           console.error('Token validation failed:', error);
@@ -53,9 +61,9 @@ export const AuthProvider = ({ children }) => {
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
 
       setToken(newToken);
-      setUser(userData);
+      setUser(normalizeUser(userData));
 
-      return { success: true, user: userData };
+      return { success: true, user: normalizeUser(userData) };
     } catch (error) {
       const message = error.response?.data?.message || 'Login failed';
       return { success: false, message };
@@ -77,9 +85,9 @@ export const AuthProvider = ({ children }) => {
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
 
       setToken(newToken);
-      setUser(userData);
+      setUser(normalizeUser(userData));
 
-      return { success: true, user: userData };
+      return { success: true, user: normalizeUser(userData) };
     } catch (error) {
       const message = error.response?.data?.message || 'Registration failed';
       return { success: false, message };
@@ -103,8 +111,9 @@ export const AuthProvider = ({ children }) => {
   const updateProfile = async (userData) => {
     try {
       const response = await api.put('/auth/profile', userData);
-      setUser(response.data.user);
-      return { success: true, user: response.data.user };
+      const normalized = normalizeUser(response.data.user);
+      setUser(normalized);
+      return { success: true, user: normalized };
     } catch (error) {
       const message = error.response?.data?.message || 'Profile update failed';
       return { success: false, message };
