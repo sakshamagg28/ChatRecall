@@ -1,0 +1,6 @@
+{
+  "name": "Chat Recall",
+  "short_name": "ChatRecall",
+  "start_url": ".",
+  "display": "standalone"
+}
