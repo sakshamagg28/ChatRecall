@@ -58,7 +58,6 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   register: (data) => api.post('/auth/register', data),
   getProfile: () => api.get('/auth/me'),
-  updateProfile: (data) => api.put('/auth/profile', data),
   logout: () => api.post('/auth/logout'),
 };
 
@@ -69,7 +68,6 @@ export const chatroomsAPI = {
   create: (data) => api.post('/chatrooms', data),
   join: (id) => api.post(`/chatrooms/${id}/join`),
   leave: (id) => api.post(`/chatrooms/${id}/leave`),
-  delete: (id) => api.delete(`/chatrooms/${id}`),
   getMessages: (id, params) => api.get(`/chatrooms/${id}/messages`, { params }),
 };
 

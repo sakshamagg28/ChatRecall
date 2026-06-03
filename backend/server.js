@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const { initializeChroma } = require('./config/chroma');
 const connectDB = require('./config/database');
 const express = require('express');
@@ -11,7 +11,24 @@ const { rateLimiter, requestLogger, securityHeaders } = require('./middleware/se
 
 const app = express();
 const PORT = process.env.PORT || 5050;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const FRONTEND_URL = process.env.FRONTEND_URL;
+const allowedOrigins = FRONTEND_URL
+  ? FRONTEND_URL.split(',').map((origin) => origin.trim()).filter(Boolean)
+  : [];
+
+const validateConfig = () => {
+  if (!FRONTEND_URL) {
+    throw new Error('FRONTEND_URL is required');
+  }
+
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is required');
+  }
+
+  if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters in production');
+  }
+};
 
 // Route imports
 const messageRoutes = require('./routes/message');
@@ -25,7 +42,7 @@ app.use(requestLogger);
 app.use(rateLimiter);
 app.use(express.json({ limit: '1mb' }));
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: allowedOrigins,
   credentials: true,
 }));
 
@@ -42,7 +59,7 @@ const { Server } = require('socket.io');
 
 const io = new Server(server, {
   cors: {
-    origin: FRONTEND_URL,
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -179,6 +196,7 @@ app.use((err, _req, res, _next) => {
 
 // App startup
 (async () => {
+  validateConfig();
   await connectDB();
   await initializeChroma();
 

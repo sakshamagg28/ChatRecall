@@ -6,6 +6,14 @@ const geminiService = require('../services/gemini');
 const Message = require('../models/Message');
 const Chatroom = require('../models/Chatroom');
 const { requireAuth } = require('../middleware/auth');
+const mongoose = require('mongoose');
+
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const parsePositiveInt = (value, fallback, max) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+};
 
 router.get('/status', async (_req, res) => {
   const geminiConfigured = !!process.env.GEMINI_API_KEY;
@@ -53,6 +61,10 @@ const getAccessibleRoomIds = async (userId) => {
 };
 
 const requireRoomAccess = async (roomId, userId) => {
+  if (!isValidObjectId(roomId)) {
+    return { error: { status: 400, message: 'Invalid chatroom ID' } };
+  }
+
   const room = await Chatroom.findById(roomId).select('isPublic members');
   if (!room) {
     return { error: { status: 404, message: 'Chatroom not found' } };
@@ -69,7 +81,7 @@ const requireRoomAccess = async (roomId, userId) => {
 router.post('/summarize/:chatroomId', async (req, res) => {
   try {
     const { chatroomId } = req.params;
-    const messageLimit = req.body?.messageLimit || 50;
+    const messageLimit = parsePositiveInt(req.body?.messageLimit, 50, 200);
     const { error } = await requireRoomAccess(chatroomId, req.user._id);
     if (error) {
       return res.status(error.status).json({ error: error.message });
@@ -108,7 +120,9 @@ router.post('/summarize/:chatroomId', async (req, res) => {
 // Semantic Search Endpoint
 router.post('/search', async (req, res) => {
   try {
-    const { query, roomId, limit } = req.body;
+    const query = req.body.query?.trim();
+    const { roomId } = req.body;
+    const limit = parsePositiveInt(req.body.limit, 10, 50);
     if (!query) {
       return res.status(400).json({ success: false, message: 'Query is required' });
     }
@@ -127,7 +141,7 @@ router.post('/search', async (req, res) => {
     const results = await chromaService.semanticSearch(query, {
       roomId,
       allowedRoomIds,
-      limit: limit ? parseInt(limit) : 10
+      limit,
     });
 
     res.json({ success: true, results });
@@ -140,7 +154,8 @@ router.post('/search', async (req, res) => {
 // Q&A Endpoint
 router.post('/qa', async (req, res) => {
   try {
-    const { question, roomId, contextLimit, relevanceThreshold } = req.body;
+    const question = req.body.question?.trim();
+    const { roomId, relevanceThreshold } = req.body;
     if (!question) {
       return res.status(400).json({ success: false, message: 'Question is required' });
     }
@@ -157,17 +172,16 @@ router.post('/qa', async (req, res) => {
     }
 
     // Retrieve relevant context from ChromaDB
-    const searchLimit = contextLimit ? parseInt(contextLimit) : 5;
+    const searchLimit = parsePositiveInt(req.body.contextLimit, 5, 20);
     const relevantMessages = await chromaService.semanticSearch(question, {
       roomId,
       allowedRoomIds,
       limit: searchLimit
     });
 
-    console.log('QA Search Results:', JSON.stringify(relevantMessages, null, 2));
-
     // Filter messages by relevance threshold if provided
-    const threshold = relevanceThreshold !== undefined ? parseFloat(relevanceThreshold) : 0;
+    const parsedThreshold = Number.parseFloat(relevanceThreshold);
+    const threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 0;
     const filteredMessages = relevantMessages.filter(msg => msg.relevanceScore >= threshold);
 
     if (filteredMessages.length === 0) {

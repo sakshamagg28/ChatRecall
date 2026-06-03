@@ -19,12 +19,7 @@ const AskAI = () => {
   const [aiStatus, setAiStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Debugging: Check aiAPI import at runtime
   useEffect(() => {
-    if (!aiAPI || typeof aiAPI.semanticSearch !== 'function') {
-      console.error('aiAPI.semanticSearch is undefined! Check your import and export in services/api.js');
-      toast.error('AI Service integration error—semanticSearch not found!');
-    }
     fetchChatrooms();
     checkAIStatus();
   }, []);

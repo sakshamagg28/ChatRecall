@@ -108,18 +108,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateProfile = async (userData) => {
-    try {
-      const response = await api.put('/auth/profile', userData);
-      const normalized = normalizeUser(response.data.user);
-      setUser(normalized);
-      return { success: true, user: normalized };
-    } catch (error) {
-      const message = error.response?.data?.message || 'Profile update failed';
-      return { success: false, message };
-    }
-  };
-
   const value = {
     user,
     token,
@@ -127,7 +115,6 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    updateProfile,
     isAuthenticated: !!user && !!token
   };
 

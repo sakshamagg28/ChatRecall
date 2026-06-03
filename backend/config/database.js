@@ -1,7 +1,12 @@
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/app_core';
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    console.error('❌ MONGODB_URI is required');
+    process.exit(1);
+  }
+
   try {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
     console.log('✅ MongoDB Connected');

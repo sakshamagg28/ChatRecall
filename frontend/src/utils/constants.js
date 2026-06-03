@@ -1,6 +1,7 @@
 // API Configuration
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5050/api';
-export const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5050';
+const browserOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || `${browserOrigin}/api`;
+export const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || browserOrigin;
 
 // App Configuration
 export const APP_NAME = process.env.REACT_APP_APP_NAME || 'Chat Recall';
