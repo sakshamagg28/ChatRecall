@@ -360,16 +360,40 @@ Ensure MongoDB and ChromaDB are active before starting the application:
 
 ---
 
-## Screenshots
+## 📸 Screenshots
 
-To showcase this project on your portfolio, place image files in your screenshots directory (e.g., `/docs/screenshots/`):
+### Dashboard
+Displays available chatrooms, room details, and quick access to AI-powered features.
 
-* **Login Page:** `/docs/screenshots/login.png` - Login and registration interface.
-* **Dashboard:** `/docs/screenshots/dashboard.png` - Room lists and active member configurations.
-* **Chat Room:** `/docs/screenshots/chatroom.png` - Real-time chat interface showing messages.
-* **Semantic Search:** `/docs/screenshots/search.png` - Search query results showing conceptual matches.
-* **AI Q&A:** `/docs/screenshots/qa.png` - Grounded response interface detailing sources.
-* **AI Summary:** `/docs/screenshots/summary.png` - Room discussion summaries.
+![Dashboard](screenshots/dashboard.png)
+
+---
+
+### Real-Time Chat Interface
+Real-time messaging interface powered by Socket.IO with support for AI conversation summarization.
+
+![Chat Interface](screenshots/chatroom.png)
+
+---
+
+### Semantic Search
+Search previous conversations using natural language instead of exact keywords through vector embeddings stored in ChromaDB.
+
+![Semantic Search](screenshots/semantic-search.png)
+
+---
+
+### AI Q&A Assistant
+Ask questions about previous conversations and receive context-aware answers generated using Retrieval-Augmented Generation (RAG).
+
+![AI Assistant](screenshots/ai-assistant.png)
+
+---
+
+### AI Chat Summary
+Generate concise summaries of chatroom discussions using Gemini AI.
+
+![Chat Summary](screenshots/chat-summary.png)
 
 ---
 
